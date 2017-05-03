@@ -17,8 +17,8 @@ class Generator(chainer.Chain):
         self.train = False
 
     def __call__(self, x):
-        h0 = self.l0(x)
-        y = F.dropout(self.l1(h0), train=self.train)
+        h0 = F.dropout(self.l0(x), train=self.train)
+        y = F.dropout(F.relu(self.l1(h0)), train=self.train)
         return y
 
     def reset_state(self):
@@ -96,6 +96,10 @@ def main():
                         help='learn target text')
     parser.add_argument('--unit', '-u', type=int, default=128,
                         help='Number of units')
+    parser.add_argument('--model', '-m', default='model.npz',
+                        help='Model file name to serialize')
+    parser.add_argument('--train_size', '-t', type=int, default=-1,
+                        help='train sequence size')
     args = parser.parse_args()
 
     print('GPU: {}'.format(args.gpu))
@@ -134,7 +138,10 @@ def main():
     train = chainer.datasets.TupleDataset(X, y)
     test = train[:-100]
     val = train[-200:-100]
-    train = train[:-200]
+    if args.train_size == -1:
+        train = train[:-200]
+    else:
+        train = train[:args.train_size]
 
     train_iter = chainer.iterators.SerialIterator(train, args.batchsize)
     val_iter = chainer.iterators.SerialIterator(val, 1, repeat=False)
