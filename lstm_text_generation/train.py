@@ -70,6 +70,14 @@ def sample(preds, temperature=1.0):
     return np.argmax(probas)
 
 
+# Routine to rewrite the result dictionary of LogReport to add perplexity
+# values
+def compute_perplexity(result):
+    result['perplexity'] = np.exp(result['main/loss'])
+    if 'validation/main/loss' in result:
+        result['val_perplexity'] = np.exp(result['validation/main/loss'])
+
+
 def main():
     parser = argparse.ArgumentParser(description='Chainer example: MNIST')
     parser.add_argument('--batchsize', '-b', type=int, default=128,
@@ -151,11 +159,12 @@ def main():
         eval_hook=lambda _: eval_rnn.reset_state()))
 
     interval = 10
-    trainer.extend(extensions.LogReport())
+    trainer.extend(extensions.LogReport(postprocess=compute_perplexity,
+                                        trigger=(interval, 'iteration')))
     trainer.extend(extensions.PrintReport(
         ['epoch', 'iteration', 'perplexity', 'val_perplexity']
     ), trigger=(interval, 'iteration'))
-    trainer.extend(extensions.ProgressBar(update_interval=1))
+    trainer.extend(extensions.ProgressBar(update_interval=10))
     trainer.extend(extensions.snapshot())
     trainer.extend(extensions.snapshot_object(
         model, 'model_iter_{.updater.iteration}'))
