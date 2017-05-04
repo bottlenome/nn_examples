@@ -137,8 +137,10 @@ def main():
         y[i] = char_indices[next_chars[i]]
 
     train = chainer.datasets.TupleDataset(X, y)
-    train, test = datasets.split_dataset_random(train, len(train) - 1000)
-    train, val = datasets.split_dataset_random(train, len(train) - 1000)
+    train, test = datasets.split_dataset_random(train, len(train) - 1000,
+                                                seed=2501)
+    train, val = datasets.split_dataset_random(train, len(train) - 1000,
+                                               seed=2501)
     if args.train_size == -1:
         pass
     else:
