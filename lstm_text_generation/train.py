@@ -10,7 +10,7 @@ import numpy as np
 
 
 class Generator(chainer.Chain):
-    def __init__(self, n_sequence, n_chars, n_units, train=False):
+    def __init__(self, n_sequence, n_chars, n_units, train=True):
         super(Generator, self).__init__(
             l0=L.LSTM(n_sequence * n_chars, n_units),
             l1=L.Linear(n_units, n_chars),
