@@ -3,6 +3,7 @@ import chainer.functions as F
 import chainer.links as L
 from chainer import training
 from chainer.training import extensions
+from chainer import datasets
 
 import argparse
 import numpy as np
@@ -14,7 +15,7 @@ class Generator(chainer.Chain):
             l0=L.LSTM(n_sequence * n_chars, n_units),
             l1=L.Linear(n_units, n_chars),
         )
-        self.train = False
+        self.train = train
 
     def __call__(self, x):
         h0 = F.dropout(self.l0(x), train=self.train)
@@ -136,10 +137,10 @@ def main():
         y[i] = char_indices[next_chars[i]]
 
     train = chainer.datasets.TupleDataset(X, y)
-    test = train[:-100]
-    val = train[-200:-100]
+    train, test = datasets.split_dataset_random(train, len(train) - 1000)
+    train, val = datasets.split_dataset_random(train, len(train) - 1000)
     if args.train_size == -1:
-        train = train[:-200]
+        pass
     else:
         train = train[:args.train_size]
 
@@ -169,10 +170,12 @@ def main():
     trainer.extend(extensions.LogReport(postprocess=compute_perplexity,
                                         trigger=(interval, 'iteration')))
     trainer.extend(extensions.PrintReport(
-        ['epoch', 'iteration', 'perplexity', 'val_perplexity']
+        ['epoch', 'iteration', 'perplexity', 'val_perplexity',
+                               'main/accuracy', 'validation/main/accuracy']
     ), trigger=(interval, 'iteration'))
     trainer.extend(extensions.ProgressBar(update_interval=10))
-    trainer.extend(extensions.snapshot())
+    frequency = args.epoch if args.frequency == -1 else max(1, args.frequency)
+    trainer.extend(extensions.snapshot(), trigger=(frequency, 'epoch'))
     trainer.extend(extensions.snapshot_object(
         model, 'model_iter_{.updater.iteration}'))
     if args.resume:
