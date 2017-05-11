@@ -24,10 +24,15 @@ class Encoder(chainer.Chain):
     def reset_state(self):
         l0.reset_state()
 
-    def __call__(self, one_hot):
-        x = self.embed(one_hot)
+    def __call__(self, tags):
+        x = self.embed(tags)
         y = self.l0(x)
         return y
+
+    def encode(self, enc):
+        for i in range(enc.shape[1]):
+            self(enc[:, i])
+        return self.l0.h
 
 
 class Decoder(chainer.Chain):
@@ -46,8 +51,8 @@ class Decoder(chainer.Chain):
     def reset_state(self):
         l0.reset_state()
 
-    def __call__(self, one_hot):
-        x = self.embed(one_hot)
+    def __call__(self, tags):
+        x = self.embed(tags)
         h0 = self.l0(x)
         y = self.l1(h0)
         return y
@@ -72,20 +77,40 @@ class Seq2Seq(chainer.Chain):
         self.encoder.reset_state()
         self.decoder.reset_state()
 
-    # if y == None prediction mode
     def __call__(self, enc, dec):
         y = []
+        self.decoder.l0.h = self.encoder.encode(enc)
+
         batch_size = enc.shape[0]
-        for char in enc:
-            h = self.encoder(char)
-        self.decoder.h = h
-        eos = numpy.array([-1 for _ in range(batch_size)], dtype=numpy.int32)
+        eos = numpy.array([EOS for _ in range(batch_size)], dtype=numpy.int32)
         t = chainer.Variable(eos)
+
         for i in range(dec.shape[1]):
             char = dec[:, i]
             y.append(self.decoder(t))
             t = char
         return y
+
+    def predict(self, enc):
+        assert(self.train is False)
+        y = []
+        self.decoder.l0.h = self.encoder.encode(enc)
+        eos = numpy.array([EOS], dtype=numpy.int32)
+        t = chainer.Variable(eos)
+
+        result = {"": 1.0}
+        for i in range(self.limit):
+            tmp = {}
+            c = self.decoder.l0.c
+            h = self.decoder.l0.h
+            for key in result.keys():
+                y = self.decoder(t)
+                probability = F.softmax(y)
+                print(y.data)
+                print(probability.data)
+                exit()
+
+        return result
 
 
 class Seq2SeqUpdater(training.StandardUpdater):
@@ -99,8 +124,6 @@ class Seq2SeqUpdater(training.StandardUpdater):
 
         y = optimizer.target(enc, dec)
 
-        print(y)
-        print(dec)
         assert(len(y) == dec.shape[1])
         loss = 0
         for i in range(len(y)):
@@ -141,3 +164,6 @@ if __name__ == '__main__':
     trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.out)
 
     trainer.run()
+
+    model.train = False
+    model.predict(numpy.array([[1, 2, -1]], dtype=numpy.int32))
