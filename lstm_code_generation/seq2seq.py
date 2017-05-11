@@ -6,7 +6,7 @@ import chainer.functions as F
 import chainer.links as L
 from chainer import training
 
-EOS = 0
+EOS = -1
 
 
 class Encoder(chainer.Chain):
@@ -72,6 +72,7 @@ class Seq2Seq(chainer.Chain):
         )
         self.train = train
         self.limit = limit_length
+        self.epsilon = 0.01
 
     def reset_state(self):
         self.encoder.reset_state()
@@ -91,25 +92,50 @@ class Seq2Seq(chainer.Chain):
             t = char
         return y
 
-    def predict(self, enc):
+    def predict(self, enc, dic):
         assert(self.train is False)
         y = []
         self.decoder.l0.h = self.encoder.encode(enc)
         eos = numpy.array([EOS], dtype=numpy.int32)
         t = chainer.Variable(eos)
 
-        result = {"": 1.0}
+        c = self.decoder.l0.c
+        h = self.decoder.l0.h
+        result = {"": {"prob": 1.0, "hidden": h, "condition": c}}
         for i in range(self.limit):
             tmp = {}
-            c = self.decoder.l0.c
-            h = self.decoder.l0.h
             for key in result.keys():
+                if key.find('<eos>') != -1:  # <eos> case
+                    tmp[key] = result[key]
+                    continue
+                self.decoder.l0.h = result[key]["hidden"]
+                self.decoder.l0.c = result[key]["condition"]
                 y = self.decoder(t)
                 probability = F.softmax(y)
-                print(y.data)
-                print(probability.data)
-                exit()
+                c = self.decoder.l0.c
+                h = self.decoder.l0.h
+                prob = result[key]["prob"]
+                for j in range(len(probability)):
+                    tmp[key+dic[j]] = {"prob": prob * probability[0, j].data,
+                                       "hidden": h,
+                                       "condition": c}
+            # remove low probability sentence
+            total = 0.0
+            all_EOS = True
+            for key in tmp.keys():
+                if key.find('<eos>') == -1:
+                    all_EOS = False
+                if tmp[key]["prob"] < self.epsilon:
+                    del tmp[key]
+                else:
+                    total += tmp[key]["prob"]
+            if all_EOS:
+                break
+            # normalize probability
+            for key in tmp.keys():
+                tmp[key]["prob"] = tmp[key]["prob"] / total
 
+            result = tmp
         return result
 
 
@@ -166,4 +192,6 @@ if __name__ == '__main__':
     trainer.run()
 
     model.train = False
-    model.predict(numpy.array([[1, 2, -1]], dtype=numpy.int32))
+    dic = ["a", "b", "c", "d", "e", "f", "g,", "h", "i", "<eos>"]
+    ret = model.predict(numpy.array([[1, 2, -1]], dtype=numpy.int32), dic)
+    print(ret)
