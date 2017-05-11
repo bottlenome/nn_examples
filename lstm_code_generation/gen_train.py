@@ -4,10 +4,12 @@ import astor
 import ast
 import re
 import pickle
+import data
 
 
 def get_functions(filepath):
-    ret = []
+    enc = []
+    dec = []
     with open(filepath) as f:
         source = f.read()
     tree = ast.parse(source)
@@ -16,17 +18,21 @@ def get_functions(filepath):
             function_source = astor.to_source(stmt)
             function_def = function_source.split('\n')[0] + '\n'
             function_des = function_source[len(function_def):]
-            ret.append([[function_def, function_des]])
-    return ret
+            enc.append(function_def)
+            dec.append(function_des)
+    return enc, dec
 
 
 def get_traindatas(path):
-    ret = []
+    enc = []
+    dec = []
     for (root, dirs, files) in os.walk(path):
         for f in files:
             if re.match(r".*\.py$", f):
-                ret.append(get_functions(root + os.sep + f))
-    return ret
+                e, d = get_functions(root + os.sep + f)
+                enc += e
+                dec += d
+    return data.Functions(enc, dec)
 
 
 def main():

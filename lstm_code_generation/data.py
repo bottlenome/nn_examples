@@ -7,20 +7,20 @@ class Functions():
 
     def convert_to_tag_reverse(self, sentences):
         x = []
-        for sentence in sentences:
+        for s in sentences:
             tags = []
-            for i in range(len(sentence)):
-                tags.insert(0, ord(sentence[i]))
+            for i in range(len(s)):
+                tags.insert(0, ord(s[i]))
             tags.insert(0, EOS)
             x.append(tags)
         return x
 
     def convert_to_tag(self, sentences):
         x = []
-        for sentence in sentences:
+        for s in sentences:
             tags = []
-            for i in range(len(sentence)):
-                tags.append(ord(sentence[i]))
+            for i in range(len(s)):
+                tags.append(ord(s[i]))
             tags.append(EOS)
             x.append(tags)
         return x
