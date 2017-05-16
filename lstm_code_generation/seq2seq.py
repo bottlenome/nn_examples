@@ -16,7 +16,7 @@ class Encoder(chainer.Chain):
                  hidden_size=128,
                  train=True):
         super(Encoder, self).__init__(
-            embed=L.EmbedID(vocab_size, embed_size, ignore_label=-1),
+            embed=L.EmbedID(vocab_size, embed_size, ignore_label=EOS),
             l0=L.LSTM(embed_size, hidden_size),
         )
         self.train = train
@@ -42,7 +42,7 @@ class Decoder(chainer.Chain):
                  hidden_size=128,
                  train=True):
         super(Decoder, self).__init__(
-            embed=L.EmbedID(vocab_size, embed_size, ignore_label=-1),
+            embed=L.EmbedID(vocab_size, embed_size, ignore_label=EOS),
             l0=L.LSTM(embed_size, hidden_size),
             l1=L.Linear(hidden_size, vocab_size)
         )
@@ -173,13 +173,23 @@ if __name__ == '__main__':
                         help='Directory to output the result')
     args = parser.parse_args()
 
+    import pickle
+    f = open('train.pickle', 'r')
+    data = pickle.load(f)
+    f.close()
+
+    model = Seq2Seq(128, 128)
+    train = data.train[:-1]
+
+    """
     model = Seq2Seq(10, 10)
-    x = [[1, 2, -1], [3, 3, -1], [2, -1, 0]]
+    x = [[1, -1], [3, 3, -1], [2, -1, 0]]
     y = [[1, 2], [3, 3], [2, -1]]
     train = []
     for i in range(len(x)):
         train.append((numpy.array(x[i], dtype=numpy.int32),
                       numpy.array(y[i], dtype=numpy.int32)))
+    """
 
     train_iter = chainer.iterators.SerialIterator(train, args.batchsize)
 
@@ -192,6 +202,8 @@ if __name__ == '__main__':
     trainer.run()
 
     model.train = False
-    dic = ["a", "b", "c", "d", "e", "f", "g,", "h", "i", "<eos>"]
-    ret = model.predict(numpy.array([[1, 2, -1]], dtype=numpy.int32), dic)
+    dic = [ord(i) for i in range(128)]
+    print(data.enc[-1])
+    print(data.dec[-1])
+    ret = model.predict(numpy.array(data.train[-1][0], dtype=numpy.int32), dic)
     print(ret)
