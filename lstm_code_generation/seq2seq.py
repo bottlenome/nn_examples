@@ -178,7 +178,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--batchsize', '-b', type=int, default=20,
                         help='Number of examples in each mini-batch')
-    parser.add_argument('--epoch', '-e', type=int, default=39,
+    parser.add_argument('--epoch', '-e', type=int, default=40,
                         help='Number of sweeps over the dataset to train')
     parser.add_argument('--gpu', '-g', type=int, default=-1,
                         help='GPU ID (negative value indicates CPU)')
@@ -233,7 +233,7 @@ if __name__ == '__main__':
                                'main/accuracy', 'validation/main/accuracy']
     ), trigger=(interval, 'iteration'))
     trainer.extend(extensions.ProgressBar(update_interval=10))
-    frequency = 1000
+    frequency = 10
     trainer.extend(extensions.snapshot(), trigger=(frequency, 'epoch'))
     if args.resume:
         chainer.serializers.load_npz(args.resume, trainer)
@@ -241,8 +241,12 @@ if __name__ == '__main__':
     trainer.run()
 
     model.train = False
-    dic = [ord(i) for i in range(128)]
-    print(data.enc[-1])
-    print(data.dec[-1])
-    ret = model.predict(numpy.array(data.train[-1][0], dtype=numpy.int32), dic)
-    print(ret)
+    dic = [chr(i) for i in range(128)]
+    print("input", data.enc[-1])
+    print("expect", data.dec[-1])
+    if args.gpu >= 0:
+        import cupy as np
+    else:
+        import numpy as np
+    ret = model.predict(np.array([data.train[-1][0]], dtype=numpy.int32), dic)
+    print("output", ret)
