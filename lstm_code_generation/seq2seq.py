@@ -5,6 +5,8 @@ import chainer
 import chainer.functions as F
 import chainer.links as L
 from chainer import training
+from chainer.training import extensions
+from chainer import reporter
 
 EOS = -1
 
@@ -22,7 +24,7 @@ class Encoder(chainer.Chain):
         self.train = train
 
     def reset_state(self):
-        l0.reset_state()
+        self.l0.reset_state()
 
     def __call__(self, tags):
         x = self.embed(tags)
@@ -49,7 +51,7 @@ class Decoder(chainer.Chain):
         self.train = train
 
     def reset_state(self):
-        l0.reset_state()
+        self.l0.reset_state()
 
     def __call__(self, tags):
         x = self.embed(tags)
@@ -79,11 +81,13 @@ class Seq2Seq(chainer.Chain):
         self.decoder.reset_state()
 
     def __call__(self, enc, dec):
+        self.reset_state()
         y = []
         self.decoder.l0.h = self.encoder.encode(enc)
 
         batch_size = enc.shape[0]
-        eos = numpy.array([EOS for _ in range(batch_size)], dtype=numpy.int32)
+        eos = self.xp.array([EOS for _ in range(batch_size)],
+                            dtype=self.xp.int32)
         t = chainer.Variable(eos)
 
         for i in range(dec.shape[1]):
@@ -96,7 +100,7 @@ class Seq2Seq(chainer.Chain):
         assert(self.train is False)
         y = []
         self.decoder.l0.h = self.encoder.encode(enc)
-        eos = numpy.array([EOS], dtype=numpy.int32)
+        eos = self.xp.array([EOS], dtype=self.xp.int32)
         t = chainer.Variable(eos)
 
         c = self.decoder.l0.c
@@ -155,10 +159,19 @@ class Seq2SeqUpdater(training.StandardUpdater):
         for i in range(len(y)):
             loss += F.softmax_cross_entropy(y[i], dec[:, i])
 
+        reporter.report({'loss': loss}, optimizer.target)
+        # reporter.report({'accuracy': accuracy}, optimizer.target)
+
         optimizer.target.cleargrads()
         loss.backward()
         loss.unchain_backward()
         optimizer.update()
+
+
+def compute_perplexity(result):
+    result['perplexity'] = numpy.exp(result['main/loss'])
+    if 'validation/main/loss' in result:
+        result['val_perplexity'] = numpy.exp(result['validation/main/loss'])
 
 
 if __name__ == '__main__':
@@ -171,6 +184,8 @@ if __name__ == '__main__':
                         help='GPU ID (negative value indicates CPU)')
     parser.add_argument('--out', '-o', default='result',
                         help='Directory to output the result')
+    parser.add_argument('--resume', '-r', default='',
+                        help='Resume the training from snapshot')
     args = parser.parse_args()
 
     import pickle
@@ -179,7 +194,12 @@ if __name__ == '__main__':
     f.close()
 
     model = Seq2Seq(128, 128)
-    train = data.train[:-1]
+    if args.gpu >= 0:
+        chainer.cuda.get_device(args.gpu).use()  # Make a specified GPU current
+        model.to_gpu()  # Copy the model to the GPU
+
+    train = data.train[:-10]
+    val = data.train[-10:]
 
     """
     model = Seq2Seq(10, 10)
@@ -192,12 +212,33 @@ if __name__ == '__main__':
     """
 
     train_iter = chainer.iterators.SerialIterator(train, args.batchsize)
+    val_iter = chainer.iterators.SerialIterator(val, 1, repeat=False)
 
     optimizer = chainer.optimizers.Adam()
     optimizer.setup(model)
 
-    updater = Seq2SeqUpdater(train_iter, optimizer)
+    updater = Seq2SeqUpdater(train_iter, optimizer, device=args.gpu)
     trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.out)
+
+    eval_model = model.copy()
+    eval_model.train = False
+    trainer.extend(extensions.Evaluator(
+        val_iter, eval_model, device=args.gpu,
+        # Reset the RNN state at the beginning of each evaluation
+        eval_hook=lambda _: eval_model.reset_state()))
+
+    interval = 10
+    trainer.extend(extensions.LogReport(postprocess=compute_perplexity,
+                                        trigger=(interval, 'iteration')))
+    trainer.extend(extensions.PrintReport(
+        ['epoch', 'iteration', 'perplexity', 'val_perplexity',
+                               'main/accuracy', 'validation/main/accuracy']
+    ), trigger=(interval, 'iteration'))
+    trainer.extend(extensions.ProgressBar(update_interval=10))
+    frequency = 1000
+    trainer.extend(extensions.snapshot(), trigger=(frequency, 'epoch'))
+    if args.resume:
+        chainer.serializers.load_npz(args.resume, trainer)
 
     trainer.run()
 
