@@ -223,9 +223,7 @@ if __name__ == '__main__':
     eval_model = model.copy()
     eval_model.train = False
     trainer.extend(extensions.Evaluator(
-        val_iter, eval_model, device=args.gpu,
-        # Reset the RNN state at the beginning of each evaluation
-        eval_hook=lambda _: eval_model.reset_state()))
+        val_iter, eval_model, device=args.gpu))
 
     interval = 10
     trainer.extend(extensions.LogReport(postprocess=compute_perplexity,
