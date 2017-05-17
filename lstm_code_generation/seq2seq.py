@@ -88,7 +88,7 @@ class Seq2Seq(chainer.Chain):
         batch_size = enc.shape[0]
         eos = self.xp.array([EOS for _ in range(batch_size)],
                             dtype=self.xp.int32)
-        t = chainer.Variable(eos)
+        t = chainer.Variable(eos, volatile=not self.train)
 
         for i in range(dec.shape[1]):
             char = dec[:, i]
@@ -101,7 +101,7 @@ class Seq2Seq(chainer.Chain):
         y = []
         self.decoder.l0.h = self.encoder.encode(enc)
         eos = self.xp.array([EOS], dtype=self.xp.int32)
-        t = chainer.Variable(eos)
+        t = chainer.Variable(eos, volatile=not self.train)
 
         c = self.decoder.l0.c
         h = self.decoder.l0.h
