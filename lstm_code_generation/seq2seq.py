@@ -250,3 +250,8 @@ if __name__ == '__main__':
         import numpy as np
     ret = model.predict(np.array([data.train[-1][0]], dtype=numpy.int32), dic)
     print("output", ret)
+
+    print("input", data.enc[0])
+    print("expect", data.dec[0])
+    ret = model.predict(np.array([data.train[0][0]], dtype=numpy.int32), dic)
+    print("output", ret)
