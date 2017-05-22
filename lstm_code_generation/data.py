@@ -25,9 +25,9 @@ class Functions():
             x.append(tags)
         return x
 
-    def convert_to_tag(self, enc, dec, enc_len=50, dec_len=200):
-        x = []
-        y = []
+    def convert_to_tag(self, enc, dec, enc_len=50, dec_len=200, fill=False):
+        x = []  # encode words(function decraration)
+        y = []  # decode words(function definition)
         for e, d in zip(enc, dec):
             if len(e) >= enc_len:
                 continue
@@ -36,15 +36,17 @@ class Functions():
             x_tags = []
             for i in range(len(e)):
                 x_tags.insert(0, ord(e[i]))
-            x_tags.insert(0, EOS)
-            for i in range(len(x_tags), enc_len, 1):
-                x_tags.append(EOS)
+            x_tags.append(EOS)
+            if fill:
+                for i in range(len(x_tags), enc_len, 1):
+                    x_tags.append(EOS)
             y_tags = []
             for i in range(len(d)):
                 y_tags.append(ord(d[i]))
             y_tags.append(EOS)
-            for i in range(len(y_tags), dec_len, 1):
-                y_tags.append(EOS)
+            if fill:
+                for i in range(len(y_tags), dec_len, 1):
+                    y_tags.append(EOS)
             x.append(x_tags)
             y.append(y_tags)
         return x, y
@@ -53,10 +55,10 @@ class Functions():
         assert(len(enc) == len(dec))
         self.enc = enc
         self.dec = dec
-        self.dic = ['\t']
+        self.dic = {'\t': 1}
         for i in range(32, 127):
-            self.dic.append(chr(i))
-        self.dic.append('<eos>')
+            self.dic[chr(i)] = i - 32 + 2
+        self.dic['<eos>'] = 127
         x, y = self.convert_to_tag(enc, dec)
         # x = self.convert_to_tag_reverse(enc)
         # y = self.convert_to_tag(dec)
